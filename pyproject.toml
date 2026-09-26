@@ -1,0 +1,15 @@
+[project]
+name = "simple-document-ranking"
+version = "0.1.0"
+description = "From-scratch TF-IDF and BM25 document ranking with reproducible SciFact evaluation."
+readme = "README.md"
+authors = [{ name = "djordjijeK", email = "krivokapic.djordjije@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+simple-document-ranking = "document_search:main"
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
