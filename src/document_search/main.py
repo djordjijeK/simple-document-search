@@ -1,68 +1,53 @@
-from math import log, sqrt
+from argparse import ArgumentParser
+from pathlib import Path
+
+from document_search.index import InvertedIndex
+from document_search.retriever import TfIdfRetriever
+from document_search.tokenizer import simple_tokenizer
 
 
-def tf(document, term):
-    term_frequency = document.split().count(term)
-    return 1 + log(term_frequency) if term_frequency else 0
+def main() -> None:
+    parser = ArgumentParser()
+    parser.add_argument("query")
+    parser.add_argument("--load-index", type=Path)
+    parser.add_argument("--save-index", type=Path)
+    args = parser.parse_args()
 
+    documents = {
+        "d1": (
+            "gene therapy delivers a healthy gene to cells and may treat "
+            "inherited disease in patients"
+        ),
+        "d2": (
+            "gene gene expression changes when cells face stress and altered "
+            "gene activity can predict disease risk"
+        ),
+        "d3": (
+            "a disease outbreak spread through several cities while public "
+            "health teams tracked new cases daily"
+        ),
+        "d4": (
+            "researchers found a gene that controls how plants respond to "
+            "heat and limited water"
+        ),
+        "d5": (
+            "climate models estimate future warming from changing emissions "
+            "and ocean temperatures across many regions"
+        ),
+    }
 
-def idf(documents, term):
-    document_frequency = sum(term in text.split() for text in documents.values())
-    return log(len(documents) / document_frequency) if document_frequency else 0
-
-
-def tfidf_weight(documents, document, term):
-    return tf(document, term) * idf(documents, term)
-
-
-def vector_norm(documents, document):
-    sum_of_squares = sum(
-        tfidf_weight(documents, document, term.strip()) ** 2
-        for term in set(document.split())
+    inverted_index = (
+        InvertedIndex.load(args.load_index)
+        if args.load_index is not None
+        else InvertedIndex.build(documents, simple_tokenizer)
     )
+    if args.save_index is not None:
+        inverted_index.save(args.save_index)
 
-    return sqrt(sum_of_squares)
-
-
-def dot_product(documents, query, document):
-    return sum(
-        tfidf_weight(documents, document, term) * tfidf_weight(documents, query, term)
-        for term in set(query.split())
-    )
-
-
-def cosine_similarity(documents, document, query):
-    query_vector_norm = vector_norm(documents, query)
-    document_vector_norm = vector_norm(documents, document)
-
-    if query_vector_norm == 0 or document_vector_norm == 0:
-        return 0.0
-
-    return dot_product(documents, query, document) / (
-        query_vector_norm * document_vector_norm
-    )
-
-
-def search(query, documents):
-    scores = []
-
-    for document_id, document in documents.items():
-        score = cosine_similarity(documents, document, query)
-
-        if score > 0:
-            scores.append((document_id, score))
-
-    return sorted(scores, key=lambda score: (-score[1], score[0]))
+    tf_idf_retriever = TfIdfRetriever(inverted_index)
+    for document_id, score in tf_idf_retriever.search(args.query):
+        print(document_id, f"{score:.6f}")
 
 
 if __name__ == "__main__":
-    query = "gene disease"
-
-    documents = {
-        "d1": "gene therapy treats disease",
-        "d2": "gene gene expression predicts disease",
-        "d3": "climate model predicts warming",
-    }
-
-    for document_id, score in search(query, documents):
-        print(document_id, f"{score:.6f}")
+    main()
