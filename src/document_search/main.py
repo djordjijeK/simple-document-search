@@ -1,52 +1,67 @@
 from argparse import ArgumentParser
-from pathlib import Path
 
 from document_search.index import InvertedIndex
-from document_search.retriever import TfIdfRetriever
+from document_search.retriever import BM25Retriever, TfIdfRetriever
+from document_search.scifact_config import INDEX_PATH
+from document_search.scifact_data import download_scifact_data
+from document_search.scifact_data_loader import load_scifact_data
 from document_search.tokenizer import simple_tokenizer
 
 
+def search_scifact_data(
+    query_id: str = "0", top_k: int = 5, rebuild: bool = False
+) -> None:
+    if top_k < 1:
+        raise ValueError("top_k must be positive")
+
+    # download data
+    download_scifact_data()
+
+    # load data
+    documents, queries = load_scifact_data()
+
+    if INDEX_PATH.is_file() and not rebuild:
+        index = InvertedIndex.load(INDEX_PATH)
+    else:
+        document_texts = {
+            document_id: document.content for document_id, document in documents.items()
+        }
+        index = InvertedIndex.build(document_texts, simple_tokenizer)
+        INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
+        index.save(INDEX_PATH)
+
+    query = queries[query_id]
+    print(f"Indexed documents: {index.document_count}")
+    print(f"Query {query_id}: {query}")
+
+    retrievers = [("TF-IDF", TfIdfRetriever(index)), ("BM25", BM25Retriever(index))]
+
+    for name, retriever in retrievers:
+        print(f"\n{name}")
+        results = retriever.search(query)[:top_k]
+        if not results:
+            print("No matching documents.")
+
+        for rank, (document_id, score) in enumerate(results, start=1):
+            document = documents[document_id]
+            print(f"{rank}. [{document_id}] score={score:.4f}")
+            print(f"   {document.title}")
+            print(f"   {document.abstract}")
+
+
 def main() -> None:
-    parser = ArgumentParser()
-    parser.add_argument("query")
-    parser.add_argument("--load-index", type=Path)
-    parser.add_argument("--save-index", type=Path)
-    args = parser.parse_args()
+    argument_parser = ArgumentParser(description="Search local SciFact data")
+    argument_parser.add_argument("--query-id", default="0")
+    argument_parser.add_argument("--top-k", type=int, default=5)
+    argument_parser.add_argument("--rebuild", action="store_true")
 
-    documents = {
-        "d1": (
-            "gene therapy delivers a healthy gene to cells and may treat "
-            "inherited disease in patients"
-        ),
-        "d2": (
-            "gene gene expression changes when cells face stress and altered "
-            "gene activity can predict disease risk"
-        ),
-        "d3": (
-            "a disease outbreak spread through several cities while public "
-            "health teams tracked new cases daily"
-        ),
-        "d4": (
-            "researchers found a gene that controls how plants respond to "
-            "heat and limited water"
-        ),
-        "d5": (
-            "climate models estimate future warming from changing emissions "
-            "and ocean temperatures across many regions"
-        ),
-    }
+    arguments = argument_parser.parse_args()
 
-    inverted_index = (
-        InvertedIndex.load(args.load_index)
-        if args.load_index is not None
-        else InvertedIndex.build(documents, simple_tokenizer)
+    search_scifact_data(
+        query_id=arguments.query_id,
+        top_k=arguments.top_k,
+        rebuild=arguments.rebuild,
     )
-    if args.save_index is not None:
-        inverted_index.save(args.save_index)
-
-    tf_idf_retriever = TfIdfRetriever(inverted_index)
-    for document_id, score in tf_idf_retriever.search(args.query):
-        print(document_id, f"{score:.6f}")
 
 
 if __name__ == "__main__":
