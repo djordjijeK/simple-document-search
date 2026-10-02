@@ -14,10 +14,6 @@ def search_scifact_data(
     if top_k < 1:
         raise ValueError("top_k must be positive")
 
-    # download data
-    download_scifact_data()
-
-    # load data
     documents, queries = load_scifact_data()
 
     if INDEX_PATH.is_file() and not rebuild:
