@@ -86,19 +86,18 @@ def evaluate_retrievers(split: str = "train", k: int = 10) -> dict:
     return report
 
 
-if __name__ == "__main__":
+def main() -> None:
     for split in ("train", "test"):
         report = evaluate_retrievers(split=split, k=10)
         print(f"\n{report['split']}: {report['query_count']} queries")
 
         labels = next(iter(report["retrievers"].values()))["mean"]
-        print(
-            f"{'Retriever':<12} "
-            + " ".join(f"{label:>10}" for label in labels)
-        )
+        print(f"{'Retriever':<12} " + " ".join(f"{label:>10}" for label in labels))
 
         for name, result in report["retrievers"].items():
-            values = " ".join(
-                f"{value:10.4f}" for value in result["mean"].values()
-            )
+            values = " ".join(f"{value:10.4f}" for value in result["mean"].values())
             print(f"{name:<12} {values}")
+
+
+if __name__ == "__main__":
+    main()
